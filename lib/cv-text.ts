@@ -1,5 +1,8 @@
+import { createRequire } from "node:module";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+
+const require = createRequire(import.meta.url);
+const { PDFParse } = require("pdf-parse") as typeof import("pdf-parse");
 
 export function isSupportedCvFile(file: File | { name?: string; type?: string }): boolean {
   const fileName = (file.name ?? "").toLowerCase();

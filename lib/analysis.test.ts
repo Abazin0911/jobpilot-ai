@@ -2,6 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createAnalysisResult } from "./analysis";
+import { extractTextFromCv } from "./cv-text";
+
+test("PDF extraction uses the Node-safe parser entrypoint", async () => {
+  await assert.rejects(
+    extractTextFromCv(Buffer.from("not a PDF"), "resume.pdf", "application/pdf"),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message !== "DOMMatrix is not defined" &&
+      error.name === "InvalidPDFException",
+  );
+});
 
 test("Russian CV matches English job description without treating ordinary Russian words as missing skills", () => {
   const cv = `
