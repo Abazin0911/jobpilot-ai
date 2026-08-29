@@ -98,7 +98,7 @@ export default function AnalyzePage() {
       formData.append("cv", selectedFile);
       formData.append("jobDescription", jobDescription.trim());
 
-      const response = await fetch(new URL("/api/analyze", window.location.origin), {
+      const response = await fetch("/api/analyze", {
         method: "POST",
         body: formData,
       });
