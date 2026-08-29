@@ -52,6 +52,7 @@ export default function AnalyzePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const canAnalyze = Boolean(selectedFile && jobDescription.trim()) && !isLoading;
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
@@ -259,15 +260,22 @@ export default function AnalyzePage() {
               <button
                 type="button"
                 onClick={handleAnalyze}
-                disabled={isLoading}
+                disabled={!canAnalyze}
+                aria-busy={isLoading}
                 className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isLoading ? "Analyzing..." : "Analyze my CV"}
               </button>
             </div>
 
+            {isLoading ? (
+              <p className="mt-4 text-sm text-cyan-700" role="status" aria-live="polite">
+                Analyzing your CV against the job description...
+              </p>
+            ) : null}
+
             {errorMessage ? (
-              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
                 {errorMessage}
               </div>
             ) : null}
@@ -292,7 +300,7 @@ export default function AnalyzePage() {
 
             <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
               <div className="rounded-[1.75rem] bg-slate-900 p-6 text-white">
-                <p className="text-sm uppercase tracking-[0.18em] text-slate-400">Overall match</p>
+                <p className="text-sm uppercase tracking-[0.18em] text-slate-400">CV fit score</p>
                 <p className="mt-2 text-lg font-medium text-cyan-300">{analysisResult.verdict}</p>
                 <div className="mt-4 text-5xl font-semibold text-white">
                   {analysisResult.overallMatchScore}%
@@ -334,7 +342,7 @@ export default function AnalyzePage() {
                   </div>
                 </div>
                 <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                  <h3 className="text-lg font-semibold text-slate-900">Skills match</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">Skills & keyword match</h3>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {analysisResult.skillsMatch.matched.length > 0 ? (
                       [...new Set(analysisResult.skillsMatch.matched.map(getDisplaySkillName))].map((skill) => (

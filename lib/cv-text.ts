@@ -8,9 +8,8 @@ export function isSupportedCvFile(file: File | { name?: string; type?: string })
   return (
     mimeType.includes("pdf") ||
     fileName.endsWith(".pdf") ||
-    mimeType.includes("word") ||
     fileName.endsWith(".docx") ||
-    fileName.endsWith(".doc")
+    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   );
 }
 
@@ -29,14 +28,9 @@ export async function extractTextFromCv(
   }
 
   if (
-    normalizedType.includes("word") ||
     normalizedName.endsWith(".docx") ||
-    normalizedName.endsWith(".doc")
+    normalizedType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
-    if (normalizedName.endsWith(".doc")) {
-      throw new Error("DOC files are not supported in this prototype. Please upload a PDF or DOCX file.");
-    }
-
     const result = await mammoth.extractRawText({ buffer });
     return result.value ?? "";
   }
