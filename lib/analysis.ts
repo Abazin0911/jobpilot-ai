@@ -33,6 +33,102 @@ export type AnalysisInput = {
   fileName?: string;
 };
 
+export type ImprovedCv = {
+  professionalSummary: string;
+  skills: string[];
+  workExperience: string[];
+  education: string[];
+  languages: string[];
+  otherSections: Array<{ title: string; items: string[] }>;
+};
+
+type GeminiImprovedCvPayload = ImprovedCv;
+
+function buildImprovedCvMock(cvText: string): ImprovedCv {
+  const lines = cvText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const summary = lines.slice(0, 3).join(" ") || "Professional summary based on the provided CV.";
+  return {
+    professionalSummary: summary,
+    skills: lines.filter((line) => /skills?|навыки/i.test(line)).slice(0, 1),
+    workExperience: lines.filter((line) => /^[-•*]/.test(line)).map((line) => line.replace(/^[-•*]\s*/, "")).slice(0, 8),
+    education: lines.filter((line) => /education|образование|university|университет/i.test(line)),
+    languages: lines.filter((line) => /language|язык|english|русск/i.test(line)),
+    otherSections: [],
+  };
+}
+
+export async function generateImprovedCv(cvText: string, jobDescription: string): Promise<ImprovedCv> {
+  const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!geminiApiKey) return buildImprovedCvMock(cvText);
+
+  const client = new GoogleGenAI({ apiKey: geminiApiKey });
+  const response = await client.models.generateContent({
+    model: "gemini-3.6-flash",
+    contents: [
+      "Rewrite and reorganize this CV for the target job. Return only valid JSON.",
+      "Use only facts, companies, roles, dates, education, skills, achievements, metrics, and languages explicitly present in the CV.",
+      "Never invent, infer, or add qualifications or experience. Do not present missing job requirements as existing experience.",
+      "Improve wording, structure, keyword alignment, and ATS readability. Preserve factual meaning.",
+      "Return empty arrays when a section is not present in the CV.",
+      "",
+      "CV:",
+      cvText,
+      "",
+      "Job description:",
+      jobDescription,
+    ].join("\n"),
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          professionalSummary: { type: "STRING" },
+          skills: { type: "ARRAY", items: { type: "STRING" } },
+          workExperience: { type: "ARRAY", items: { type: "STRING" } },
+          education: { type: "ARRAY", items: { type: "STRING" } },
+          languages: { type: "ARRAY", items: { type: "STRING" } },
+          otherSections: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING" },
+                items: { type: "ARRAY", items: { type: "STRING" } },
+              },
+              required: ["title", "items"],
+            },
+          },
+        },
+        required: ["professionalSummary", "skills", "workExperience", "education", "languages", "otherSections"],
+      },
+    },
+  });
+
+  if (!response.text) throw new Error("Gemini returned no improved CV.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(response.text);
+  } catch {
+    throw new Error("Gemini returned an invalid improved CV format.");
+  }
+  if (!isImprovedCvPayload(parsed)) throw new Error("Gemini returned incomplete improved CV data.");
+  return parsed;
+}
+
+function isImprovedCvPayload(value: unknown): value is GeminiImprovedCvPayload {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Record<string, unknown>;
+  const sections = ["skills", "workExperience", "education", "languages"];
+  return typeof payload.professionalSummary === "string" &&
+    sections.every((key) => isStringArray((payload as Record<string, unknown>)[key])) &&
+    Array.isArray(payload.otherSections) &&
+    payload.otherSections.every((section) => {
+      if (!section || typeof section !== "object") return false;
+      const item = section as Record<string, unknown>;
+      return typeof item.title === "string" && isStringArray(item.items);
+    });
+}
+
 type GeminiAnalysisPayload = Omit<AnalysisResult, "overallMatchScore" | "note"> & {
   skillCoverage: number;
 };

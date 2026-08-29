@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Document, Packer, Paragraph, HeadingLevel } from "docx";
 import { ChangeEvent, useRef, useState } from "react";
 
 type AnalysisResult = {
@@ -12,6 +13,7 @@ type AnalysisResult = {
     matched: string[];
     missing: string[];
   };
+
   experienceMatch: number;
   strengths: string[];
   missingSkills: string[];
@@ -28,6 +30,15 @@ type AnalysisResult = {
   }>;
   shortRecommendation: string;
   note?: string;
+};
+
+type ImprovedCv = {
+  professionalSummary: string;
+  skills: string[];
+  workExperience: string[];
+  education: string[];
+  languages: string[];
+  otherSections: Array<{ title: string; items: string[] }>;
 };
 
 const DISPLAY_SKILL_NAMES: Record<string, string> = {
@@ -62,6 +73,9 @@ export default function AnalyzePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [cvText, setCvText] = useState("");
+  const [improvedCv, setImprovedCv] = useState<ImprovedCv | null>(null);
+  const [isImproving, setIsImproving] = useState(false);
   const canAnalyze = Boolean(selectedFile && jobDescription.trim()) && !isLoading;
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -120,6 +134,7 @@ export default function AnalyzePage() {
       }
 
       setAnalysisResult(data.result);
+      setCvText(data.cvText ?? "");
     } catch (error) {
       setAnalysisResult(null);
       setErrorMessage(
@@ -128,6 +143,69 @@ export default function AnalyzePage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleImproveCv = async () => {
+    if (!cvText || !jobDescription.trim()) return;
+    setIsImproving(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/improve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cvText, jobDescription: jobDescription.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "We could not improve your CV right now.");
+      setImprovedCv(data.improvedCv);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "We could not improve your CV right now.");
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
+  const getImprovedCvText = () => {
+    if (!improvedCv) return "";
+    return [
+      "PROFESSIONAL SUMMARY", improvedCv.professionalSummary,
+      "SKILLS", ...improvedCv.skills,
+      "WORK EXPERIENCE", ...improvedCv.workExperience,
+      "EDUCATION", ...improvedCv.education,
+      "LANGUAGES", ...improvedCv.languages,
+      ...improvedCv.otherSections.flatMap((section) => [section.title, ...section.items]),
+    ].filter(Boolean).join("\n\n");
+  };
+
+  const handleCopyImprovedCv = async () => {
+    await navigator.clipboard.writeText(getImprovedCvText());
+  };
+
+  const handleDownloadImprovedCv = async () => {
+    if (!improvedCv) return;
+    const sections: Array<[string, string[]]> = [
+      ["Professional Summary", [improvedCv.professionalSummary]],
+      ["Skills", improvedCv.skills],
+      ["Work Experience", improvedCv.workExperience],
+      ["Education", improvedCv.education],
+      ["Languages", improvedCv.languages],
+      ...improvedCv.otherSections.map((section) => [section.title, section.items] as [string, string[]]),
+    ];
+    const doc = new Document({
+      sections: [{ children: sections.flatMap(([title, items]) => [
+        new Paragraph({ text: title, heading: HeadingLevel.HEADING_2 }),
+        ...items.map((item) => new Paragraph({ text: item, bullet: { level: 0 } })),
+      ]) }],
+    });
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "improved-cv.docx";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -304,14 +382,15 @@ export default function AnalyzePage() {
               <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => document.getElementById("cv-improvement-suggestions")?.scrollIntoView({ behavior: "smooth" })}
+                  onClick={handleImproveCv}
+                  disabled={isImproving}
                   className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95"
                 >
-                  Improve my CV
+                  {isImproving ? "Improving your CV..." : "Improve my CV"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAnalysisResult(null)}
+                  onClick={() => { setAnalysisResult(null); setImprovedCv(null); }}
                   className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   Analyze another job
@@ -323,6 +402,31 @@ export default function AnalyzePage() {
                 </span>
               ) : null}
             </div>
+
+            {improvedCv ? (
+              <section className="mt-8 rounded-[1.75rem] border border-cyan-200 bg-cyan-50 p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-2xl font-semibold text-slate-900">Your improved CV</h2>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={handleCopyImprovedCv} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">Copy improved CV</button>
+                    <button type="button" onClick={handleDownloadImprovedCv} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">Download as DOCX</button>
+                    <button type="button" onClick={() => setImprovedCv(null)} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">Back to analysis</button>
+                  </div>
+                </div>
+                <div className="mt-6 space-y-5 text-sm leading-6 text-slate-700">
+                  {( [
+                    ["Professional Summary", [improvedCv.professionalSummary]],
+                    ["Skills", improvedCv.skills],
+                    ["Work Experience", improvedCv.workExperience],
+                    ["Education", improvedCv.education],
+                    ["Languages", improvedCv.languages],
+                    ...improvedCv.otherSections.map((section) => [section.title, section.items] as [string, string[]]),
+                  ] as Array<[string, string[]]>).map(([title, items]) => items.length > 0 ? (
+                    <div key={title}><h3 className="font-semibold text-slate-900">{title}</h3><ul className="mt-2 list-disc space-y-1 pl-5">{items.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                  ) : null)}
+                </div>
+              </section>
+            ) : null}
 
             <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
               <div className="rounded-[1.75rem] bg-slate-900 p-6 text-white">
