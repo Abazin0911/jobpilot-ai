@@ -5,6 +5,13 @@ import { generateImprovedCv } from "@/lib/analysis";
 export const runtime = "nodejs";
 
 function isGeminiRateLimitError(error: unknown): boolean {
+  if (typeof error === "object" && error !== null) {
+    const details = error as { message?: unknown; status?: unknown; statusCode?: unknown };
+    if (details.status === 429 || details.statusCode === 429) return true;
+    if (typeof details.message === "string" && /RESOURCE_EXHAUSTED|quota exceeded|rate limit|\b429\b/i.test(details.message)) {
+      return true;
+    }
+  }
   const details = error instanceof Error ? error.message : String(error);
   return /RESOURCE_EXHAUSTED|quota exceeded|rate limit|\b429\b/i.test(details);
 }
@@ -21,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, improvedCv });
   } catch (error) {
     if (isGeminiRateLimitError(error)) {
-      return NextResponse.json({ error: "AI improvement is temporarily unavailable due to the Gemini rate limit. Please try again shortly." }, { status: 429 });
+      return NextResponse.json({ error: "AI improvement is temporarily unavailable. Please try again later." }, { status: 429 });
     }
     return NextResponse.json({ error: "We could not improve your CV right now. Please try again later." }, { status: 500 });
   }
