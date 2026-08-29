@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { createAnalysisResult } from "./analysis";
 import { extractTextFromCv } from "./cv-text";
 
-test("PDF extraction uses the Node-safe parser entrypoint", async () => {
+test("PDF extraction loads without browser-only DOMMatrix dependencies", async () => {
   await assert.rejects(
     extractTextFromCv(Buffer.from("not a PDF"), "resume.pdf", "application/pdf"),
     (error: unknown) =>

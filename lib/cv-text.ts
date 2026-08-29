@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import mammoth from "mammoth";
 
 const require = createRequire(import.meta.url);
-const { PDFParse } = require("pdf-parse") as typeof import("pdf-parse");
+type PdfParse = (buffer: Buffer) => Promise<{ text?: string }>;
 
 export function isSupportedCvFile(file: File | { name?: string; type?: string }): boolean {
   const fileName = (file.name ?? "").toLowerCase();
@@ -25,8 +25,8 @@ export async function extractTextFromCv(
   const normalizedType = (mimeType ?? "").toLowerCase();
 
   if (normalizedType.includes("pdf") || normalizedName.endsWith(".pdf")) {
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
+    const pdfParse = require("pdf-parse/lib/pdf-parse.js") as PdfParse;
+    const result = await pdfParse(buffer);
     return result.text ?? "";
   }
 
