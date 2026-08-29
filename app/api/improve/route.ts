@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { generateImprovedCv } from "@/lib/analysis";
+import { getAuthenticatedUserId } from "@/lib/request-auth";
+import { updateImprovedCv } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -21,10 +23,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const cvText = typeof body.cvText === "string" ? body.cvText.trim() : "";
     const jobDescription = typeof body.jobDescription === "string" ? body.jobDescription.trim() : "";
+    const analysisId = typeof body.analysisId === "string" ? body.analysisId : "";
     if (!cvText || !jobDescription) {
       return NextResponse.json({ error: "CV content and job description are required." }, { status: 400 });
     }
     const improvedCv = await generateImprovedCv(cvText, jobDescription);
+    const userId = await getAuthenticatedUserId();
+    if (userId && analysisId) updateImprovedCv(analysisId, userId, improvedCv as unknown as Record<string, unknown>);
     return NextResponse.json({ success: true, improvedCv });
   } catch (error) {
     if (isGeminiRateLimitError(error)) {

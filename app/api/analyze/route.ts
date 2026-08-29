@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { generateAnalysisResult } from "@/lib/analysis";
 import { extractTextFromCv, isSupportedCvFile } from "@/lib/cv-text";
+import { getAuthenticatedUserId } from "@/lib/request-auth";
+import { insertAnalysis } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -72,11 +74,20 @@ export async function POST(request: Request) {
       jobDescription,
       fileName: file.name,
     });
+    const userId = await getAuthenticatedUserId();
+    const saved = userId ? insertAnalysis({
+      userId,
+      cvFilename: file.name,
+      jobDescription,
+      cvText,
+      result: result as unknown as Record<string, unknown>,
+    }) : null;
 
     return NextResponse.json({
       success: true,
       result,
       cvText,
+      analysisId: saved?.id ?? null,
     });
   } catch (error) {
     if (isGeminiRateLimitError(error)) {

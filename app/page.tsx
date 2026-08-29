@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AuthNav from "@/app/components/AuthNav";
 
 const navItems = ["Home", "How it works", "Pricing"];
 
@@ -25,12 +26,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <a
-              href="#"
-              className="hidden rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition hover:text-slate-900 sm:inline-flex"
-            >
-              Sign in
-            </a>
+            <AuthNav />
             <Link
               href="/analyze"
               className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-slate-900/15 transition hover:bg-slate-800"

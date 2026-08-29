@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Document, Packer, Paragraph, HeadingLevel } from "docx";
 import { ChangeEvent, useRef, useState } from "react";
+import AuthNav from "@/app/components/AuthNav";
 
 type AnalysisResult = {
   overallMatchScore: number;
@@ -74,6 +75,7 @@ export default function AnalyzePage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [cvText, setCvText] = useState("");
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [improvedCv, setImprovedCv] = useState<ImprovedCv | null>(null);
   const [isImproving, setIsImproving] = useState(false);
   const canAnalyze = Boolean(selectedFile && jobDescription.trim()) && !isLoading;
@@ -135,6 +137,7 @@ export default function AnalyzePage() {
 
       setAnalysisResult(data.result);
       setCvText(data.cvText ?? "");
+      setAnalysisId(data.analysisId ?? null);
     } catch (error) {
       setAnalysisResult(null);
       setErrorMessage(
@@ -153,7 +156,7 @@ export default function AnalyzePage() {
       const response = await fetch("/api/improve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cvText, jobDescription: jobDescription.trim() }),
+        body: JSON.stringify({ cvText, jobDescription: jobDescription.trim(), analysisId }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "We could not improve your CV right now.");
@@ -220,6 +223,7 @@ export default function AnalyzePage() {
               JobPilot AI
             </span>
           </Link>
+          <AuthNav />
 
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
             <Link href="/" className="transition hover:text-slate-900">
