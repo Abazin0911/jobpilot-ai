@@ -738,11 +738,13 @@ export function createAnalysisResult(input: AnalysisInput): AnalysisResult {
 }
 
 export async function generateAnalysisResult(input: AnalysisInput): Promise<AnalysisResult> {
-  if (!process.env.GEMINI_API_KEY) {
+  const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
+
+  if (!geminiApiKey) {
     return createAnalysisResult(input);
   }
 
-  const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const client = new GoogleGenAI({ apiKey: geminiApiKey });
   const response = await client.models.generateContent({
     model: "gemini-3.6-flash",
     contents: [
