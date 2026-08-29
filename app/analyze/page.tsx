@@ -55,7 +55,27 @@ export default function AnalyzePage() {
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
+
+    if (file) {
+      const fileName = file.name.toLowerCase();
+      const fileType = file.type.toLowerCase();
+      const isPdf = fileName.endsWith(".pdf") || fileType.includes("pdf");
+      const isDocx =
+        fileName.endsWith(".docx") ||
+        fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+      if (!isPdf && !isDocx) {
+        event.target.value = "";
+        setSelectedFile(null);
+        setAnalysisResult(null);
+        setErrorMessage("Unsupported file type. Please upload a PDF or DOCX CV.");
+        return;
+      }
+    }
+
     setSelectedFile(file);
+    setAnalysisResult(null);
+    setErrorMessage("");
   };
 
   const handleAnalyze = async () => {
@@ -172,7 +192,7 @@ export default function AnalyzePage() {
                 id="cv-upload"
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 className="hidden"
                 onChange={handleFileChange}
               />
