@@ -13,6 +13,16 @@ export type AnalysisResult = {
   strengths: string[];
   missingSkills: string[];
   recommendedImprovements: string[];
+  missingKeywords: string[];
+  atsCompatibility: {
+    score: number;
+    status: "Strong" | "Good" | "Needs work";
+    details: string;
+  };
+  cvImprovementSuggestions: Array<{
+    original: string;
+    suggestion: string;
+  }>;
   shortRecommendation: string;
   note?: string;
 };
@@ -622,6 +632,31 @@ function buildRecommendedImprovements(missingSkills: string[], skillCoverage: nu
   return improvements.slice(0, 4);
 }
 
+function buildAtsCompatibility(skillCoverage: number, experienceMatch: number, cvText: string): AnalysisResult["atsCompatibility"] {
+  const score = clamp(Math.round(skillCoverage * 0.7 + experienceMatch * 0.3), 15, 100);
+  const status = score >= 75 ? "Strong" : score >= 55 ? "Good" : "Needs work";
+  const details =
+    cvText.trim().length >= 250 && skillCoverage >= 60
+      ? "The CV contains enough searchable content and relevant terminology for an ATS-style screening."
+      : "The CV would benefit from clearer role-specific keywords, standard headings, and more searchable evidence.";
+  return { score, status, details };
+}
+
+function buildCvImprovementSuggestions(cvText: string, matchedSkills: string[]): AnalysisResult["cvImprovementSuggestions"] {
+  const firstBullet = cvText
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[\s•*-]+/, "").trim())
+    .find((line) => line.length >= 25 && !/:$/.test(line));
+  if (!firstBullet) return [];
+  const focus = matchedSkills.slice(0, 2).join(" and ");
+  return [{
+    original: firstBullet,
+    suggestion: focus
+      ? `Rewrite with a clear action, context, and result, using your real ${focus} experience.`
+      : "Rewrite with a clear action, context, and result using only verifiable details from your experience.",
+  }];
+}
+
 function getVerdict(score: number): AnalysisResult["verdict"] {
   if (score >= 75) return "Strong match";
   if (score >= 60) return "Good match";
@@ -706,6 +741,8 @@ export function createAnalysisResult(input: AnalysisInput): AnalysisResult {
 
   const strengths = buildStrengths(cvConcepts);
   const recommendedImprovements = buildRecommendedImprovements(missingSkills, skillCoverage);
+  const atsCompatibility = buildAtsCompatibility(skillCoverage, experienceMatch, input.cvText);
+  const cvImprovementSuggestions = buildCvImprovementSuggestions(input.cvText, matchedDisplaySkills);
 
   const shortRecommendation =
     overallMatchScore >= 75
@@ -730,6 +767,9 @@ export function createAnalysisResult(input: AnalysisInput): AnalysisResult {
     strengths,
     missingSkills,
     recommendedImprovements,
+    missingKeywords: missingSkills,
+    atsCompatibility,
+    cvImprovementSuggestions,
     shortRecommendation,
     note: process.env.GEMINI_API_KEY
       ? "AI analysis powered by Gemini."
@@ -756,6 +796,9 @@ export async function generateAnalysisResult(input: AnalysisInput): Promise<Anal
       "For metrics, explicitly require real and verifiable data.",
       "For CRM or helpdesk tools absent from the CV, recommend practical training first and listing the tool only after gaining real experience.",
       "The final recommendation must describe only evidence present in the CV and must not claim unsupported experience.",
+      "Missing keywords must be taken only from the job description and absent from the CV.",
+      "ATS compatibility must reflect searchable extracted CV content and the role's terminology.",
+      "CV improvement suggestions may rewrite only wording present in the CV; never invent facts.",
       "",
       "CV:",
       input.cvText,
@@ -774,6 +817,9 @@ export async function generateAnalysisResult(input: AnalysisInput): Promise<Anal
         strengths: ["concise strength"],
         missingSkills: ["human-readable skill"],
         recommendedImprovements: ["actionable improvement"],
+        missingKeywords: ["important keyword from the job description"],
+        atsCompatibility: { score: 0, status: "Needs work", details: "ATS screening summary" },
+        cvImprovementSuggestions: [{ original: "weak CV bullet", suggestion: "safe rewritten example" }],
         shortRecommendation: "concise recommendation",
       }),
       "skillCoverage and experienceMatch must be percentages from 0 to 100.",
@@ -799,6 +845,27 @@ export async function generateAnalysisResult(input: AnalysisInput): Promise<Anal
           strengths: { type: "ARRAY", items: { type: "STRING" } },
           missingSkills: { type: "ARRAY", items: { type: "STRING" } },
           recommendedImprovements: { type: "ARRAY", items: { type: "STRING" } },
+          missingKeywords: { type: "ARRAY", items: { type: "STRING" } },
+          atsCompatibility: {
+            type: "OBJECT",
+            properties: {
+              score: { type: "NUMBER" },
+              status: { type: "STRING", enum: ["Strong", "Good", "Needs work"] },
+              details: { type: "STRING" },
+            },
+            required: ["score", "status", "details"],
+          },
+          cvImprovementSuggestions: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                original: { type: "STRING" },
+                suggestion: { type: "STRING" },
+              },
+              required: ["original", "suggestion"],
+            },
+          },
           shortRecommendation: { type: "STRING" },
         },
         required: [
@@ -811,6 +878,9 @@ export async function generateAnalysisResult(input: AnalysisInput): Promise<Anal
           "strengths",
           "missingSkills",
           "recommendedImprovements",
+          "missingKeywords",
+          "atsCompatibility",
+          "cvImprovementSuggestions",
           "shortRecommendation",
         ],
       },
@@ -834,6 +904,9 @@ export async function generateAnalysisResult(input: AnalysisInput): Promise<Anal
     strengths: payload.strengths,
     missingSkills: payload.missingSkills,
     recommendedImprovements: protectRecommendations(payload.recommendedImprovements, payload.missingSkills),
+    missingKeywords: payload.missingKeywords,
+    atsCompatibility: payload.atsCompatibility,
+    cvImprovementSuggestions: payload.cvImprovementSuggestions,
     shortRecommendation: payload.shortRecommendation,
     note: "AI analysis powered by Gemini.",
   };
@@ -873,12 +946,19 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string" && item.trim().length > 0);
 }
 
+function isStringArrayOrEmpty(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string" && item.trim().length > 0);
+}
+
 function isGeminiAnalysisPayload(value: unknown): value is GeminiAnalysisPayload {
   if (!value || typeof value !== "object") return false;
   const payload = value as Record<string, unknown>;
   const skillsMatch = payload.skillsMatch;
+  const atsCompatibility = payload.atsCompatibility;
   if (!skillsMatch || typeof skillsMatch !== "object") return false;
+  if (!atsCompatibility || typeof atsCompatibility !== "object") return false;
   const skillMatch = skillsMatch as Record<string, unknown>;
+  const ats = atsCompatibility as Record<string, unknown>;
 
   return (
     typeof payload.skillCoverage === "number" &&
@@ -905,6 +985,22 @@ function isGeminiAnalysisPayload(value: unknown): value is GeminiAnalysisPayload
     isStringArray(payload.missingSkills) &&
     Array.isArray(payload.recommendedImprovements) &&
     isStringArray(payload.recommendedImprovements) &&
+    Array.isArray(payload.missingKeywords) &&
+    isStringArrayOrEmpty(payload.missingKeywords) &&
+    typeof ats.score === "number" &&
+    ats.score >= 0 &&
+    ats.score <= 100 &&
+    ["Strong", "Good", "Needs work"].includes(String(ats.status)) &&
+    typeof ats.details === "string" &&
+    Array.isArray(payload.cvImprovementSuggestions) &&
+    payload.cvImprovementSuggestions.every((item) => {
+      if (!item || typeof item !== "object") return false;
+      const suggestion = item as Record<string, unknown>;
+      return typeof suggestion.original === "string" &&
+        suggestion.original.trim().length > 0 &&
+        typeof suggestion.suggestion === "string" &&
+        suggestion.suggestion.trim().length > 0;
+    }) &&
     typeof payload.shortRecommendation === "string" &&
     payload.shortRecommendation.trim().length > 0
   );

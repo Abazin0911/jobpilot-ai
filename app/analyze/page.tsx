@@ -16,6 +16,16 @@ type AnalysisResult = {
   strengths: string[];
   missingSkills: string[];
   recommendedImprovements: string[];
+  missingKeywords: string[];
+  atsCompatibility: {
+    score: number;
+    status: "Strong" | "Good" | "Needs work";
+    details: string;
+  };
+  cvImprovementSuggestions: Array<{
+    original: string;
+    suggestion: string;
+  }>;
   shortRecommendation: string;
   note?: string;
 };
@@ -291,8 +301,24 @@ export default function AnalyzePage() {
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold text-slate-900">Application fit summary</h2>
               </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("cv-improvement-suggestions")?.scrollIntoView({ behavior: "smooth" })}
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95"
+                >
+                  Improve my CV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAnalysisResult(null)}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Analyze another job
+                </button>
+              </div>
               {analysisResult.note ? (
-                <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-700">
+                <span className="col-span-full rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-700">
                   {analysisResult.note}
                 </span>
               ) : null}
@@ -360,6 +386,31 @@ export default function AnalyzePage() {
                 </div>
 
                 <div className="grid gap-5 md:grid-cols-2">
+                  <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
+                    <h3 className="text-lg font-semibold text-slate-900">Missing Keywords</h3>
+                    {analysisResult.missingKeywords.length > 0 ? (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {analysisResult.missingKeywords.map((keyword) => (
+                          <span key={keyword} className="rounded-full border border-amber-200 bg-white px-3 py-1 text-sm font-medium text-amber-700">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm text-slate-500">No important missing keywords detected.</p>
+                    )}
+                  </div>
+                  <div className="rounded-[1.5rem] border border-cyan-200 bg-cyan-50 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-lg font-semibold text-slate-900">ATS Compatibility</h3>
+                      <span className="text-2xl font-semibold text-cyan-700">{analysisResult.atsCompatibility.score}%</span>
+                    </div>
+                    <p className="mt-2 text-sm font-medium text-cyan-700">{analysisResult.atsCompatibility.status}</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">{analysisResult.atsCompatibility.details}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
                   <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
                     <h3 className="text-lg font-semibold text-slate-900">Missing skills</h3>
                     <ul className="mt-4 space-y-2 text-sm text-slate-600">
@@ -390,7 +441,7 @@ export default function AnalyzePage() {
                 </div>
 
                 <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                  <h3 className="text-lg font-semibold text-slate-900">Recommended CV improvements</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">Recommendations</h3>
                   <ul className="mt-4 space-y-3 text-sm text-slate-600">
                     {analysisResult.recommendedImprovements.map((item) => (
                       <li key={item} className="flex items-start gap-2">
@@ -399,6 +450,22 @@ export default function AnalyzePage() {
                       </li>
                     ))}
                   </ul>
+                </div>
+
+                <div id="cv-improvement-suggestions" className="rounded-[1.5rem] border border-cyan-200 bg-cyan-50 p-5">
+                  <h3 className="text-lg font-semibold text-slate-900">CV Improvement Suggestions</h3>
+                  {analysisResult.cvImprovementSuggestions.length > 0 ? (
+                    <div className="mt-4 space-y-4">
+                      {analysisResult.cvImprovementSuggestions.map((item) => (
+                        <div key={item.original} className="rounded-xl border border-cyan-100 bg-white p-4">
+                          <p className="text-sm text-slate-500">Current wording: {item.original}</p>
+                          <p className="mt-2 text-sm font-medium leading-6 text-slate-700">Suggested rewrite: {item.suggestion}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-slate-600">No rewrite example is available from the extracted CV content.</p>
+                  )}
                 </div>
 
                 <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
